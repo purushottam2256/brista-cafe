@@ -34,6 +34,20 @@ const InventoryManagement = () => {
   const [selectedItem, setSelectedItem] = useState<MenuItemType | null>(null);
   const [processing, setProcessing] = useState(false);
   
+  // Check authentication state
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error || !session) {
+        console.error("Auth error:", error);
+        toast.error("Authentication error. Please log in again.");
+        return;
+      }
+      console.log("Auth state:", session);
+    };
+    checkAuth();
+  }, []);
+
   // New item form state
   const [newItem, setNewItem] = useState<{
     product_name: string;
@@ -212,25 +226,17 @@ const InventoryManagement = () => {
     try {
       setProcessing(true);
       
+      // Check authentication state
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      console.log("Current session:", session);
+      
+      if (sessionError) {
+        console.error("Session error:", sessionError);
+        throw new Error("Authentication error");
+      }
+      
       // Log attempt to add item
       console.log("Attempting to add new item:", newItem);
-      
-      // Check Supabase connectivity
-      try {
-        const { data: healthCheck, error: healthError } = await supabase.from('inventory').select('count(*)');
-        
-        if (healthError) {
-          console.error("Supabase connectivity issue:", healthError);
-          throw new Error(`Database connectivity issue: ${healthError.message}`);
-        }
-        
-        console.log("Database connection check:", healthCheck);
-      } catch (connErr) {
-        console.error("Failed to connect to database:", connErr);
-        toast.error("Failed to connect to database. Please check your internet connection.");
-        setProcessing(false);
-        return;
-      }
       
       // Proceed with item insertion
       const { data, error } = await supabase
@@ -241,7 +247,7 @@ const InventoryManagement = () => {
           quantity: newItem.quantity,
           price: newItem.price,
           category: newItem.category,
-          is_available: newItem.quantity > 0 ? true : false // Add availability flag
+          is_available: newItem.quantity > 0
         }])
         .select();
 
@@ -296,10 +302,10 @@ const InventoryManagement = () => {
         .from('inventory')
         .update({
           product_name: newItem.product_name,
-          description: newItem.description,
           quantity: newItem.quantity,
           price: newItem.price,
-          category: newItem.category
+          category: newItem.category,
+          is_available: newItem.quantity > 0
         })
         .eq('id', selectedItem.id);
 
