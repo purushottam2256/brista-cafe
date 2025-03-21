@@ -16,6 +16,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ onViewBill, onOrderSt
   const [orders, setOrders] = useState<OrderType[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [activeFilter, setActiveFilter] = useState<string>('pending');
+  const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
   
   // Fetch orders from Supabase
   const fetchOrders = async () => {
@@ -41,6 +42,7 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ onViewBill, onOrderSt
       }));
       
       setOrders(parsedOrders);
+      setLastRefreshed(new Date());
     } catch (error) {
       console.error('Error fetching orders:', error);
       toast.error('Failed to load orders');
@@ -57,11 +59,31 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ onViewBill, onOrderSt
       .channel('orders_channel')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, fetchOrders)
       .subscribe();
+    
+    // Set up auto-refresh every 30 seconds
+    const refreshInterval = setInterval(() => {
+      console.log('Auto-refreshing orders...');
+      fetchOrders();
+    }, 30000); // 30 seconds
       
     return () => {
       subscription.unsubscribe();
+      clearInterval(refreshInterval);
     };
   }, [activeFilter]);
+  
+  // Format the time since last refresh
+  const getTimeSinceRefresh = () => {
+    const now = new Date();
+    const diffSeconds = Math.floor((now.getTime() - lastRefreshed.getTime()) / 1000);
+    
+    if (diffSeconds < 60) {
+      return `${diffSeconds} seconds ago`;
+    } else {
+      const diffMinutes = Math.floor(diffSeconds / 60);
+      return `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''} ago`;
+    }
+  };
   
   // Handle approval/rejection of order
   const handleStatusChange = async (orderId: string, status: 'approved' | 'rejected') => {
@@ -116,28 +138,68 @@ const OrderManagement: React.FC<OrderManagementProps> = ({ onViewBill, onOrderSt
   
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex space-x-2">
-          {['all', 'pending', 'approved', 'rejected'].map((status) => (
-            <Button
-              key={status}
-              variant={activeFilter === status ? 'default' : 'outline'}
-              onClick={() => setActiveFilter(status)}
-              className="capitalize"
-            >
-              {status}
-            </Button>
-          ))}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-cafe-dark">Order Management</h2>
+          <p className="text-cafe-text/70">Manage and track cafe orders</p>
         </div>
         
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-cafe-text/60">Last refreshed: {getTimeSinceRefresh()}</span>
+          <Button 
+            variant="outline"
+            size="sm"
+            onClick={fetchOrders}
+            disabled={loading}
+            title="Refresh orders"
+            className="h-8"
+          >
+            <RefreshCcw size={14} className={`mr-1 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
+      </div>
+      
+      <div className="flex flex-wrap gap-2 mb-4">
         <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={fetchOrders}
-          className="flex items-center gap-1"
+          variant={activeFilter === 'all' ? "default" : "outline"} 
+          size="sm"
+          onClick={() => setActiveFilter('all')}
+          className={activeFilter === 'all' ? "bg-cafe hover:bg-cafe-dark" : ""}
         >
-          <RefreshCcw size={14} />
-          Refresh
+          All Orders
+        </Button>
+        <Button 
+          variant={activeFilter === 'pending' ? "default" : "outline"} 
+          size="sm"
+          onClick={() => setActiveFilter('pending')}
+          className={activeFilter === 'pending' ? "bg-cafe hover:bg-cafe-dark" : ""}
+        >
+          Pending
+        </Button>
+        <Button 
+          variant={activeFilter === 'approved' ? "default" : "outline"} 
+          size="sm"
+          onClick={() => setActiveFilter('approved')}
+          className={activeFilter === 'approved' ? "bg-cafe hover:bg-cafe-dark" : ""}
+        >
+          Approved
+        </Button>
+        <Button 
+          variant={activeFilter === 'completed' ? "default" : "outline"} 
+          size="sm"
+          onClick={() => setActiveFilter('completed')}
+          className={activeFilter === 'completed' ? "bg-cafe hover:bg-cafe-dark" : ""}
+        >
+          Completed
+        </Button>
+        <Button 
+          variant={activeFilter === 'rejected' ? "default" : "outline"} 
+          size="sm"
+          onClick={() => setActiveFilter('rejected')}
+          className={activeFilter === 'rejected' ? "bg-cafe hover:bg-cafe-dark" : ""}
+        >
+          Rejected
         </Button>
       </div>
       

@@ -106,35 +106,43 @@ const BillDisplay: React.FC<BillDisplayProps> = ({
           <div className="flex justify-center mb-2">
             <Logo withText={false} />
           </div>
-          <h2 className="text-lg font-semibold">Coffee Cafe</h2>
+          <h2 className="text-lg font-semibold">Barista @ Star Hospital</h2>
           <p className="text-sm text-gray-500">Thank you for your order!</p>
           <div className="text-xs text-gray-500 mt-1">
-            123 Coffee Street, Bengaluru<br />
+            <br />
             Tel: 123-456-7890
           </div>
         </div>
         
-        <div className="mb-4">
-          <div className="flex justify-between text-sm">
-            <span>Order #:</span>
-            <span>{order.id}</span>
+        <div className="flex justify-between text-xs text-gray-500 mb-2">
+          <span>Order ID:</span>
+          <span>{order.id}</span>
+        </div>
+        <div className="flex justify-between text-xs text-gray-500 mb-2">
+          <span>Date:</span>
+          <span>{formatDate(order.created_at)}</span>
+        </div>
+        {order.customer_name && (
+          <div className="flex justify-between text-xs text-gray-500 mb-2">
+            <span>Customer:</span>
+            <span>{order.customer_name}</span>
           </div>
-          <div className="flex justify-between text-sm">
-            <span>Date:</span>
-            <span>{formatDate(order.created_at)}</span>
+        )}
+        {order.room_number && (
+          <div className="flex justify-between text-xs text-gray-500 mb-2">
+            <span>Room Number:</span>
+            <span>{order.room_number}</span>
           </div>
-          <div className="flex justify-between text-sm">
-            <span>Status:</span>
-            <span className={order.status === 'approved' ? 'text-green-600' : 'text-red-600'}>
-              {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-            </span>
-          </div>
-          {order.status === 'approved' && (
-            <div className="flex justify-between text-sm">
-              <span>Approved:</span>
-              <span>{order.approved_at ? formatDate(order.approved_at) : 'N/A'}</span>
-            </div>
-          )}
+        )}
+        <div className="flex justify-between text-xs text-gray-500 mb-2">
+          <span>Payment Method:</span>
+          <span className="capitalize">{order.payment_method}</span>
+        </div>
+        <div className="flex justify-between text-xs text-gray-500 mb-3">
+          <span>Status:</span>
+          <span className={order.status === 'completed' ? 'text-green-500' : 'text-amber-500'}>
+            {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+          </span>
         </div>
         
         <div className="border-t border-b border-gray-200 py-2 mb-4">

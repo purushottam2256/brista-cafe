@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Ban, RotateCcw, Search, PlusCircle, Edit, Trash2, Loader2 } from 'lucide-react';
+import { Ban, RotateCcw, Search, PlusCircle, Edit, Trash2, Loader2, Menu, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -11,13 +11,15 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 
 // Define types
 type MenuItemType = {
   id: number;
-  product_name: string;
+  item_name: string;
   description?: string;
-  quantity: number;
+  is_available: boolean;
   price: number;
   category: string;
   created_at: string;
@@ -27,51 +29,49 @@ const InventoryManagement = () => {
   const [menuItems, setMenuItems] = useState<MenuItemType[]>([]);
   const [filteredItems, setFilteredItems] = useState<MenuItemType[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
   const [isLoading, setIsLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<MenuItemType | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [activeView, setActiveView] = useState<'all' | 'menu'>('all');
   
-  // Check authentication state
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (error || !session) {
-        console.error("Auth error:", error);
-        toast.error("Authentication error. Please log in again.");
-        return;
-      }
-      console.log("Auth state:", session);
-    };
-    checkAuth();
-  }, []);
-
-  // New item form state
-  const [newItem, setNewItem] = useState<{
-    product_name: string;
-    description: string;
-    quantity: number;
-    price: number;
-    category: string;
-  }>({
-    product_name: '',
+  // New/Edit item form state
+  const [itemForm, setItemForm] = useState({
+    item_name: '',
     description: '',
-    quantity: 0,
+    is_available: true,
     price: 0,
     category: 'coffee'
   });
+
+  // Categories for items
+  const categories = [
+    { value: 'all', label: 'All Categories' },
+    { value: 'breakfast', label: 'Breakfast' },
+    { value: 'pizza', label: 'Pizza' },
+    { value: 'burger', label: 'Burger' },
+    { value: 'snacks', label: 'Snacks' },
+    { value: 'hot', label: 'Hot Drinks' },
+    { value: 'coffee', label: 'Coffee' },
+    { value: 'tea', label: 'Tea' },
+    { value: 'ice-tea', label: 'Ice Tea' },
+    { value: 'ice-coffee', label: 'Ice Coffee' },
+    { value: 'smoothies', label: 'Smoothies' }
+  ];
 
   // Fetch menu items from Supabase
   const fetchMenuItems = async () => {
     setIsLoading(true);
     try {
-      console.log("Attempting to fetch inventory items from Supabase...");
+      console.log("Attempting to fetch menu items from Supabase...");
       
       // Check connection to Supabase
       try {
-        await supabase.from('inventory').select('count(*)', { count: 'exact', head: true });
+        // Using a different approach to check connection - just get the first row
+        await supabase.from('menu').select('id').limit(1);
       } catch (connError) {
         console.error("Supabase connection error:", connError);
         toast.error("Could not connect to the database. Please check your internet connection.");
@@ -80,17 +80,16 @@ const InventoryManagement = () => {
       }
       
       const { data: menuItemsData, error: menuItemsError } = await supabase
-        .from('inventory')
+        .from('menu')
         .select('*')
-        .order('product_name');
+        .order('item_name');
         
       if (menuItemsError) {
-        console.error("Error fetching inventory data:", menuItemsError);
+        console.error("Error fetching menu data:", menuItemsError);
         throw menuItemsError;
       }
       
-      console.log("Successfully fetched inventory items:", menuItemsData ? menuItemsData.length : 0, "items");
-      console.log("First few items:", menuItemsData?.slice(0, 3));
+      console.log("Successfully fetched menu items:", menuItemsData ? menuItemsData.length : 0, "items");
       
       setMenuItems(menuItemsData || []);
       setFilteredItems(menuItemsData || []);
@@ -101,7 +100,7 @@ const InventoryManagement = () => {
       if (error.code === 'PGRST116' || error.message?.includes('Failed to fetch')) {
         toast.error("Network error: Unable to reach the database server. Please check your connection.");
       } else if (error.code === '42P01') {
-        toast.error("Database error: The inventory table doesn't exist.");
+        toast.error("Database error: The menu table doesn't exist.");
       } else {
         toast.error(`Failed to load menu items: ${error.message || 'Unknown error'}`);
       }
@@ -118,22 +117,32 @@ const InventoryManagement = () => {
     fetchMenuItems();
   }, []);
 
-  // Filter menu items based on search query
+  // Filter menu items based on search and category
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      setFilteredItems(menuItems);
-      return;
+    let filtered = [...menuItems];
+    
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(item => 
+        item.item_name.toLowerCase().includes(query) ||
+        item.description?.toLowerCase().includes(query) ||
+        item.category.toLowerCase().includes(query)
+      );
     }
     
-    const query = searchQuery.toLowerCase();
-    const filtered = menuItems.filter(item => 
-      item.product_name.toLowerCase().includes(query) ||
-      item.description?.toLowerCase().includes(query) ||
-      item.category.toLowerCase().includes(query)
-    );
+    // Filter by category
+    if (selectedCategory !== 'all') {
+      filtered = filtered.filter(item => item.category === selectedCategory);
+    }
+    
+    // Filter by active view (all or only available items)
+    if (activeView === 'menu') {
+      filtered = filtered.filter(item => item.is_available);
+    }
     
     setFilteredItems(filtered);
-  }, [searchQuery, menuItems]);
+  }, [searchQuery, selectedCategory, menuItems, activeView]);
 
   // Toggle item availability
   const toggleItemAvailability = async (itemId: number) => {
@@ -142,15 +151,14 @@ const InventoryManagement = () => {
       const item = menuItems.find(i => i.id === itemId);
       if (!item) return;
       
-      // If quantity is > 0, set it to 0 (unavailable)
-      // If quantity is <= 0, set it to 10 (available)
-      const newQuantity = item.quantity > 0 ? 0 : 10;
+      // Toggle availability from true to false or vice versa
+      const newAvailability = !item.is_available;
       
-      console.log(`Updating item ${item.product_name} (${itemId}) availability to ${newQuantity > 0 ? 'available' : 'unavailable'}`);
+      console.log(`Updating item ${item.item_name} (${itemId}) availability to ${newAvailability ? 'available' : 'unavailable'}`);
       
       const { data, error } = await supabase
-        .from('inventory')
-        .update({ quantity: newQuantity })
+        .from('menu')
+        .update({ is_available: newAvailability })
         .eq('id', itemId)
         .select();
         
@@ -162,7 +170,7 @@ const InventoryManagement = () => {
       setMenuItems(prev => 
         prev.map(item => 
           item.id === itemId 
-            ? { ...item, quantity: newQuantity } 
+            ? { ...item, is_available: newAvailability } 
             : item
         )
       );
@@ -170,13 +178,12 @@ const InventoryManagement = () => {
       setFilteredItems(prev => 
         prev.map(item => 
           item.id === itemId 
-            ? { ...item, quantity: newQuantity } 
+            ? { ...item, is_available: newAvailability } 
             : item
         )
       );
       
-      // Add feedback that this will update the menu
-      toast.success(`Item ${newQuantity > 0 ? 'available' : 'unavailable'} now. Menu will update automatically.`);
+      toast.success(`Item ${newAvailability ? 'available' : 'unavailable'} now. Menu will update automatically.`);
     } catch (error: any) {
       console.error("Error updating item availability:", error);
       toast.error(`Failed to update item availability: ${error.message}`);
@@ -190,17 +197,16 @@ const InventoryManagement = () => {
     try {
       setProcessing(true);
       const { error } = await supabase
-        .from('inventory')
-        .update({ quantity: 10 })
+        .from('menu')
+        .update({ is_available: true })
         .in('id', menuItems.map(item => item.id));
       
       if (error) throw error;
       
       // Update local state
-      setMenuItems(prev => prev.map(item => ({ ...item, quantity: 10 })));
-      setFilteredItems(prev => prev.map(item => ({ ...item, quantity: 10 })));
+      setMenuItems(prev => prev.map(item => ({ ...item, is_available: true })));
+      setFilteredItems(prev => prev.map(item => ({ ...item, is_available: true })));
       
-      // Add feedback that this will update the menu
       toast.success('All items are now available. Menu will update automatically.');
     } catch (error: any) {
       console.error("Error resetting item availability:", error);
@@ -213,12 +219,12 @@ const InventoryManagement = () => {
   // Add new item
   const addItem = async () => {
     // Validate form
-    if (!newItem.product_name.trim()) {
-      toast.error("Product name is required");
+    if (!itemForm.item_name.trim()) {
+      toast.error("Item name is required");
       return;
     }
     
-    if (newItem.price <= 0) {
+    if (itemForm.price <= 0) {
       toast.error("Price must be greater than 0");
       return;
     }
@@ -226,28 +232,34 @@ const InventoryManagement = () => {
     try {
       setProcessing(true);
       
-      // Check authentication state
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      console.log("Current session:", session);
-      
-      if (sessionError) {
-        console.error("Session error:", sessionError);
-        throw new Error("Authentication error");
-      }
-      
       // Log attempt to add item
-      console.log("Attempting to add new item:", newItem);
+      console.log("Attempting to add new item:", itemForm);
+      
+      // Check Supabase connectivity
+      try {
+        // Changed to a simpler approach that works with Supabase
+        const { error: healthError } = await supabase.from('menu').select('id').limit(1);
+        
+        if (healthError) {
+          console.error("Supabase connectivity issue:", healthError);
+          throw new Error(`Database connectivity issue: ${healthError.message}`);
+        }
+      } catch (connErr) {
+        console.error("Failed to connect to database:", connErr);
+        toast.error("Failed to connect to database. Please check your internet connection.");
+        setProcessing(false);
+        return;
+      }
       
       // Proceed with item insertion
       const { data, error } = await supabase
-        .from('inventory')
+        .from('menu')
         .insert([{
-          product_name: newItem.product_name,
-          description: newItem.description,
-          quantity: newItem.quantity,
-          price: newItem.price,
-          category: newItem.category,
-          is_available: newItem.quantity > 0
+          item_name: itemForm.item_name.trim(),
+          description: itemForm.description.trim(),
+          is_available: itemForm.is_available,
+          price: Number(itemForm.price),
+          category: itemForm.category
         }])
         .select();
 
@@ -257,13 +269,13 @@ const InventoryManagement = () => {
       }
 
       console.log("Successfully added item, response:", data);
-      toast.success(`${newItem.product_name} added to inventory. Menu will update automatically.`);
+      toast.success(`${itemForm.item_name} added to menu.`);
       
       // Reset form
-      setNewItem({
-        product_name: '',
+      setItemForm({
+        item_name: '',
         description: '',
-        quantity: 0,
+        is_available: true,
         price: 0,
         category: 'coffee'
       });
@@ -272,46 +284,64 @@ const InventoryManagement = () => {
       fetchMenuItems(); // Refresh the list
     } catch (error: any) {
       console.error("Error adding item:", error);
-      toast.error(`Failed to add item: ${error.message}`);
+      
+      if (error.code === 'PGRST116' || error.message?.includes('Failed to fetch')) {
+        toast.error("Network error: Unable to reach the database server");
+      } else if (error.code === '23505') {
+        toast.error("An item with this name already exists");
+      } else {
+        toast.error(`Failed to add item: ${error.message}`);
+      }
     } finally {
       setProcessing(false);
     }
   };
 
-  // Edit item
-  const openEditDialog = (item: MenuItemType) => {
+  // Handle opening the edit dialog
+  const handleEditItem = (item: MenuItemType) => {
     setSelectedItem(item);
-    
-    setNewItem({
-      product_name: item.product_name,
+    setItemForm({
+      item_name: item.item_name,
       description: item.description || '',
-      quantity: item.quantity,
+      is_available: item.is_available,
       price: item.price,
       category: item.category
     });
-    
     setIsEditDialogOpen(true);
   };
 
+  // Edit existing item
   const updateItem = async () => {
     if (!selectedItem) return;
     
+    // Validate form
+    if (!itemForm.item_name.trim()) {
+      toast.error("Item name is required");
+      return;
+    }
+    
+    if (itemForm.price <= 0) {
+      toast.error("Price must be greater than 0");
+      return;
+    }
+
     try {
       setProcessing(true);
+      
       const { error } = await supabase
-        .from('inventory')
+        .from('menu')
         .update({
-          product_name: newItem.product_name,
-          quantity: newItem.quantity,
-          price: newItem.price,
-          category: newItem.category,
-          is_available: newItem.quantity > 0
+          item_name: itemForm.item_name.trim(),
+          description: itemForm.description.trim(),
+          is_available: itemForm.is_available,
+          price: Number(itemForm.price),
+          category: itemForm.category
         })
         .eq('id', selectedItem.id);
 
       if (error) throw error;
 
-      toast.success(`${newItem.product_name} updated successfully. Menu will update automatically.`);
+      toast.success(`${itemForm.item_name} updated successfully.`);
       setIsEditDialogOpen(false);
       fetchMenuItems(); // Refresh the list
     } catch (error: any) {
@@ -322,8 +352,8 @@ const InventoryManagement = () => {
     }
   };
 
-  // Delete item
-  const openDeleteDialog = (item: MenuItemType) => {
+  // Handle opening the delete dialog
+  const handleDeleteItem = (item: MenuItemType) => {
     setSelectedItem(item);
     setIsDeleteDialogOpen(true);
   };
@@ -334,13 +364,13 @@ const InventoryManagement = () => {
     try {
       setProcessing(true);
       const { error } = await supabase
-        .from('inventory')
+        .from('menu')
         .delete()
         .eq('id', selectedItem.id);
 
       if (error) throw error;
 
-      toast.success(`${selectedItem.product_name} deleted from inventory`);
+      toast.success(`${selectedItem.item_name} deleted from menu`);
       setIsDeleteDialogOpen(false);
       fetchMenuItems(); // Refresh the list
     } catch (error: any) {
@@ -351,23 +381,70 @@ const InventoryManagement = () => {
     }
   };
 
+  // Handle form input changes
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target as HTMLInputElement;
+    setItemForm({ 
+      ...itemForm, 
+      [name]: type === 'number' ? (value === '' ? 0 : parseFloat(value)) : value 
+    });
+  };
+
+  // Handle checkbox changes
+  const handleCheckboxChange = (checked: boolean) => {
+    setItemForm({ ...itemForm, is_available: checked });
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col md:flex-row md:items-center gap-2 mb-6">
-        <h1 className="text-2xl font-bold text-cafe-dark">Inventory Management</h1>
+        <h1 className="text-2xl font-bold text-cafe-dark">Inventory & Menu Management</h1>
         <Badge className="ml-2">Total: {menuItems.length} items</Badge>
       </div>
 
-      <div className="flex flex-col sm:flex-row items-center gap-2">
+      <Tabs 
+        defaultValue="all" 
+        onValueChange={(value) => setActiveView(value as 'all' | 'menu')}
+        className="mb-6"
+      >
+        <TabsList className="mb-4">
+          <TabsTrigger value="all" className="flex items-center gap-1.5">
+            <Tag size={16} />
+            All Items
+          </TabsTrigger>
+          <TabsTrigger value="menu" className="flex items-center gap-1.5">
+            <Menu size={16} />
+            Available Items
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      <div className="flex flex-col sm:flex-row items-center gap-2 mb-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search menu items..."
+            placeholder="Search items..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
           />
         </div>
+        
+        <Select
+          value={selectedCategory}
+          onValueChange={setSelectedCategory}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Category" />
+          </SelectTrigger>
+          <SelectContent>
+            {categories.map((category) => (
+              <SelectItem key={category.value} value={category.value}>
+                {category.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         
         <Button 
           variant="outline" 
@@ -394,7 +471,7 @@ const InventoryManagement = () => {
         <div className="cafe-card p-8 text-center">
           <div className="flex flex-col items-center justify-center space-y-2">
             <Loader2 className="h-8 w-8 animate-spin text-cafe" />
-            <p className="text-muted-foreground">Loading inventory...</p>
+            <p className="text-muted-foreground">Loading menu items...</p>
           </div>
         </div>
       ) : (
@@ -403,7 +480,9 @@ const InventoryManagement = () => {
             {filteredItems.length > 0 ? (
               <div className="overflow-hidden rounded-lg border border-cafe/10 bg-white shadow-sm">
                 <div className="border-b border-cafe/10 bg-cafe/5 px-4 py-3">
-                  <h2 className="text-lg font-semibold text-cafe-dark">Menu Items</h2>
+                  <h2 className="text-lg font-semibold text-cafe-dark">
+                    {activeView === 'all' ? 'All Menu Items' : 'Available Menu Items'}
+                  </h2>
                 </div>
                 
                 <div className="divide-y divide-cafe/10">
@@ -417,7 +496,10 @@ const InventoryManagement = () => {
                     >
                       <div className="flex-1">
                         <div className="flex items-center flex-wrap gap-2">
-                          <h3 className="font-medium text-cafe-text">{item.product_name}</h3>
+                          <h3 className="font-medium text-cafe-text">{item.item_name}</h3>
+                          {!item.is_available && (
+                            <Badge className="bg-red-100 text-red-600 hover:bg-red-200">Unavailable</Badge>
+                          )}
                           {item.description && (
                             <span className="text-xs text-cafe-text/60">
                               {item.description}
@@ -431,30 +513,31 @@ const InventoryManagement = () => {
                       </div>
                       
                       <div className="flex items-center gap-2">
-                        <span className={`mr-2 text-sm ${item.quantity > 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          {item.quantity > 0 ? 'Available' : 'Unavailable'}
-                        </span>
-                        <Switch
-                          checked={item.quantity > 0}
-                          onCheckedChange={() => toggleItemAvailability(item.id)}
-                          className="data-[state=checked]:bg-green-500 data-[state=unchecked]:bg-red-500"
-                          disabled={processing}
-                        />
-                        <Button 
-                          variant="ghost" 
+                        <div className="flex items-center">
+                          <span className="mr-2 text-sm text-cafe-text/60">Available</span>
+                          <Switch
+                            checked={item.is_available}
+                            onCheckedChange={() => toggleItemAvailability(item.id)}
+                            disabled={processing}
+                          />
+                        </div>
+                        
+                        <Button
+                          variant="ghost"
                           size="icon"
-                          onClick={() => openEditDialog(item)}
-                          className="h-8 w-8 text-slate-600"
+                          className="text-cafe-text/60 hover:text-cafe"
                           disabled={processing}
+                          onClick={() => handleEditItem(item)}
                         >
                           <Edit size={16} />
                         </Button>
-                        <Button 
-                          variant="ghost" 
+                        
+                        <Button
+                          variant="ghost"
                           size="icon"
-                          onClick={() => openDeleteDialog(item)}
-                          className="h-8 w-8 text-red-600"
+                          className="text-red-400 hover:text-red-500 hover:bg-red-50"
                           disabled={processing}
+                          onClick={() => handleDeleteItem(item)}
                         >
                           <Trash2 size={16} />
                         </Button>
@@ -464,100 +547,119 @@ const InventoryManagement = () => {
                 </div>
               </div>
             ) : (
-              <div className="cafe-card flex flex-col items-center justify-center p-8 text-center">
-                <Ban size={48} className="mb-4 text-cafe-text/30" />
-                <h3 className="text-xl font-semibold">No items found</h3>
-                <p className="mt-2 text-muted-foreground">
-                  {searchQuery ? "Try a different search term" : "Add items to your menu"}
+              <div className="cafe-card p-6 text-center">
+                <Ban size={24} className="mx-auto mb-2 text-muted-foreground" />
+                <h3 className="font-medium text-cafe-text">No items found</h3>
+                <p className="text-sm text-cafe-text/60 mt-1">
+                  {searchQuery 
+                    ? "Try a different search term or clear the filters" 
+                    : activeView === 'menu'
+                      ? "No available menu items found. Set items to available using the toggle."
+                      : "No menu items yet. Add some to get started."}
                 </p>
-                {searchQuery && (
-                  <Button 
-                    variant="outline" 
-                    className="mt-4"
-                    onClick={() => setSearchQuery('')}
-                  >
-                    Clear Search
-                  </Button>
-                )}
               </div>
             )}
           </AnimatePresence>
         </div>
       )}
-
-      {/* Add item dialog */}
+      
+      {/* Add Item Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Add New Menu Item</DialogTitle>
+            <DialogTitle>Add New Item</DialogTitle>
           </DialogHeader>
+          
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="product_name">Product Name</Label>
-              <Input 
-                id="product_name" 
-                value={newItem.product_name} 
-                onChange={(e) => setNewItem({...newItem, product_name: e.target.value})}
-                placeholder="Enter product name"
+              <Label htmlFor="item_name">Item Name *</Label>
+              <Input
+                id="item_name"
+                name="item_name"
+                value={itemForm.item_name}
+                onChange={handleInputChange}
+                placeholder="e.g. Espresso"
+                required
               />
             </div>
             
             <div className="grid gap-2">
               <Label htmlFor="description">Description</Label>
-              <Input 
-                id="description" 
-                value={newItem.description} 
-                onChange={(e) => setNewItem({...newItem, description: e.target.value})}
-                placeholder="Enter item description (optional)"
+              <Textarea
+                id="description"
+                name="description"
+                value={itemForm.description}
+                onChange={handleInputChange}
+                placeholder="Short description of the item"
+                rows={2}
               />
             </div>
             
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="price">Price (₹) *</Label>
+                <Input
+                  id="price"
+                  name="price"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={itemForm.price}
+                  onChange={handleInputChange}
+                  onBlur={(e) => {
+                    if (e.target.value === '' || parseFloat(e.target.value) < 0) {
+                      setItemForm({...itemForm, price: 0});
+                    }
+                  }}
+                  required
+                />
+              </div>
+            </div>
+            
             <div className="grid gap-2">
-              <Label htmlFor="category">Category</Label>
-              <Select 
-                value={newItem.category} 
-                onValueChange={(value) => setNewItem({...newItem, category: value})}
+              <Label htmlFor="category">Category *</Label>
+              <Select
+                value={itemForm.category}
+                onValueChange={(value) => setItemForm({...itemForm, category: value})}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select category" />
+                  <SelectValue placeholder="Select a category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="coffee">Coffee</SelectItem>
-                  <SelectItem value="tea">Tea</SelectItem>
-                  <SelectItem value="food">Food</SelectItem>
-                  <SelectItem value="dessert">Dessert</SelectItem>
-                  <SelectItem value="beverage">Beverage</SelectItem>
+                  {categories.filter(c => c.value !== 'all').map((category) => (
+                    <SelectItem key={category.value} value={category.value}>
+                      {category.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="price">Price</Label>
-              <Input 
-                id="price" 
-                type="number" 
-                value={newItem.price} 
-                onChange={(e) => setNewItem({...newItem, price: parseFloat(e.target.value) || 0})}
-                placeholder="Enter price"
-              />
-            </div>
             
-            <div className="grid gap-2">
-              <Label htmlFor="quantity">Quantity</Label>
-              <Input 
-                id="quantity" 
-                type="number" 
-                value={newItem.quantity} 
-                onChange={(e) => setNewItem({...newItem, quantity: parseFloat(e.target.value) || 0})}
-                placeholder="Enter quantity"
+            <div className="flex items-center space-x-2 mt-2">
+              <Checkbox 
+                id="is_available" 
+                checked={itemForm.is_available}
+                onCheckedChange={handleCheckboxChange}
               />
+              <Label htmlFor="is_available" className="cursor-pointer">
+                Item is available
+              </Label>
             </div>
           </div>
+          
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)} disabled={processing}>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsAddDialogOpen(false)}
+              disabled={processing}
+            >
               Cancel
             </Button>
-            <Button onClick={addItem} disabled={processing}>
+            <Button 
+              onClick={addItem}
+              disabled={processing}
+              className="bg-cafe hover:bg-cafe-dark"
+            >
               {processing ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -570,76 +672,104 @@ const InventoryManagement = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Edit item dialog */}
+      
+      {/* Edit Item Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Menu Item</DialogTitle>
+            <DialogTitle>Edit Item</DialogTitle>
           </DialogHeader>
+          
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="edit-product_name">Product Name</Label>
-              <Input 
-                id="edit-product_name" 
-                value={newItem.product_name} 
-                onChange={(e) => setNewItem({...newItem, product_name: e.target.value})}
+              <Label htmlFor="edit_item_name">Item Name *</Label>
+              <Input
+                id="edit_item_name"
+                name="item_name"
+                value={itemForm.item_name}
+                onChange={handleInputChange}
+                placeholder="e.g. Espresso"
+                required
               />
             </div>
             
             <div className="grid gap-2">
-              <Label htmlFor="edit-description">Description</Label>
-              <Input 
-                id="edit-description" 
-                value={newItem.description} 
-                onChange={(e) => setNewItem({...newItem, description: e.target.value})}
+              <Label htmlFor="edit_description">Description</Label>
+              <Textarea
+                id="edit_description"
+                name="description"
+                value={itemForm.description}
+                onChange={handleInputChange}
+                placeholder="Short description of the item"
+                rows={2}
               />
             </div>
             
+            <div className="grid grid-cols-1 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit_price">Price (₹) *</Label>
+                <Input
+                  id="edit_price"
+                  name="price"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={itemForm.price}
+                  onChange={handleInputChange}
+                  onBlur={(e) => {
+                    if (e.target.value === '' || parseFloat(e.target.value) < 0) {
+                      setItemForm({...itemForm, price: 0});
+                    }
+                  }}
+                  required
+                />
+              </div>
+            </div>
+            
             <div className="grid gap-2">
-              <Label htmlFor="edit-category">Category</Label>
-              <Select 
-                value={newItem.category} 
-                onValueChange={(value) => setNewItem({...newItem, category: value})}
+              <Label htmlFor="edit_category">Category *</Label>
+              <Select
+                value={itemForm.category}
+                onValueChange={(value) => setItemForm({...itemForm, category: value})}
               >
-                <SelectTrigger id="edit-category">
-                  <SelectValue placeholder="Select category" />
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="coffee">Coffee</SelectItem>
-                  <SelectItem value="tea">Tea</SelectItem>
-                  <SelectItem value="food">Food</SelectItem>
-                  <SelectItem value="dessert">Dessert</SelectItem>
-                  <SelectItem value="beverage">Beverage</SelectItem>
+                  {categories.filter(c => c.value !== 'all').map((category) => (
+                    <SelectItem key={category.value} value={category.value}>
+                      {category.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="edit-price">Price</Label>
-              <Input 
-                id="edit-price" 
-                type="number" 
-                value={newItem.price} 
-                onChange={(e) => setNewItem({...newItem, price: parseFloat(e.target.value) || 0})}
-              />
-            </div>
             
-            <div className="grid gap-2">
-              <Label htmlFor="edit-quantity">Quantity</Label>
-              <Input 
-                id="edit-quantity" 
-                type="number" 
-                value={newItem.quantity} 
-                onChange={(e) => setNewItem({...newItem, quantity: parseFloat(e.target.value) || 0})}
+            <div className="flex items-center space-x-2 mt-2">
+              <Checkbox 
+                id="edit_is_available" 
+                checked={itemForm.is_available}
+                onCheckedChange={handleCheckboxChange}
               />
+              <Label htmlFor="edit_is_available" className="cursor-pointer">
+                Item is available
+              </Label>
             </div>
           </div>
+          
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={processing}>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsEditDialogOpen(false)}
+              disabled={processing}
+            >
               Cancel
             </Button>
-            <Button onClick={updateItem} disabled={processing}>
+            <Button 
+              onClick={updateItem}
+              disabled={processing}
+              className="bg-cafe hover:bg-cafe-dark"
+            >
               {processing ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -652,21 +782,34 @@ const InventoryManagement = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Delete confirmation dialog */}
+      
+      {/* Delete Item Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Delete Menu Item</DialogTitle>
+            <DialogTitle>Delete Item</DialogTitle>
           </DialogHeader>
+          
           <div className="py-4">
-            <p>Are you sure you want to delete <strong>{selectedItem?.product_name}</strong>? This action cannot be undone.</p>
+            <p className="text-muted-foreground">
+              Are you sure you want to delete <span className="font-semibold">{selectedItem?.item_name}</span>? 
+              This action cannot be undone.
+            </p>
           </div>
+          
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={processing}>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsDeleteDialogOpen(false)}
+              disabled={processing}
+            >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={deleteItem} disabled={processing}>
+            <Button 
+              onClick={deleteItem}
+              disabled={processing}
+              variant="destructive"
+            >
               {processing ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -683,4 +826,4 @@ const InventoryManagement = () => {
   );
 };
 
-export default InventoryManagement;
+export default InventoryManagement; 

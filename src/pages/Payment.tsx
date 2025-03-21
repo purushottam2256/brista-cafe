@@ -26,6 +26,7 @@ export type Order = {
   table_number?: string;
   subtotal: number;
   taxes: number;
+  room_number: string;
 }
 
 const Payment = () => {
@@ -98,7 +99,7 @@ const Payment = () => {
         payment_method: selectedMethod,
         status: 'pending',
         created_at: new Date().toISOString(),
-        table_number: localStorage.getItem('tableNumber') || 'Unknown',
+        room_number: localStorage.getItem('roomNumber') || 'Unknown',
       };
       
       // Save order to Supabase

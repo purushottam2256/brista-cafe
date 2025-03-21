@@ -20,7 +20,8 @@ const BillDisplay = forwardRef<HTMLDivElement, BillDisplayProps>(
       total = 0, 
       payment_method = 'Cash', 
       created_at = new Date().toISOString(),
-      customer_name
+      customer_name,
+      room_number
     } = orderData;
     
     return (
@@ -40,6 +41,12 @@ const BillDisplay = forwardRef<HTMLDivElement, BillDisplayProps>(
             <div className="flex justify-between text-sm">
               <span>Customer:</span>
               <span>{customer_name}</span>
+            </div>
+          )}
+          {room_number && (
+            <div className="flex justify-between text-sm">
+              <span>Room Number:</span>
+              <span>{room_number}</span>
             </div>
           )}
           <div className="flex justify-between text-sm">

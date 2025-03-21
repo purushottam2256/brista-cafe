@@ -134,7 +134,8 @@ const Admin = () => {
       
       // Simply store admin status without session timeout info
       localStorage.setItem('isAdmin', 'true');
-      
+      localStorage.setItem('adminSecurityKey', 'barista-secured-dashboard-key');
+
       toast.success('Login successful');
       navigate('/admin/dashboard');
     } catch (error: any) {

@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { ChevronLeft, ShoppingCart, Trash2 } from 'lucide-react';
+import { ChevronLeft, ShoppingCart, Trash2, Building } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -17,10 +19,27 @@ import Logo from '@/components/Logo';
 import CartItem from '@/components/CartItem';
 import PageTransition from '@/components/PageTransition';
 import { useCart } from '@/context/CartContext';
+import { toast } from 'sonner';
 
 const Cart = () => {
-  const { items, totalItems, subtotal, total, clearCart } = useCart(); // Removed tax from destructuring
+  const { items, totalItems, subtotal, total, clearCart } = useCart();
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  const [roomNumber, setRoomNumber] = useState('');
+
+  // Load room number from localStorage if exists
+  useEffect(() => {
+    const savedRoomNumber = localStorage.getItem('roomNumber');
+    if (savedRoomNumber) {
+      setRoomNumber(savedRoomNumber);
+    }
+  }, []);
+
+  // Save room number to localStorage when it changes
+  useEffect(() => {
+    if (roomNumber) {
+      localStorage.setItem('roomNumber', roomNumber);
+    }
+  }, [roomNumber]);
 
   const handleClearClick = () => {
     setClearDialogOpen(true);
@@ -31,8 +50,22 @@ const Cart = () => {
     setClearDialogOpen(false);
   };
 
+  const handleRoomNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Only allow numbers and limit to 3 digits
+    const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
+    setRoomNumber(value);
+  };
+
+  const handleProceedToPayment = () => {
+    if (!roomNumber && items.length > 0) {
+      toast.warning("Please enter your room number for delivery");
+      return false;
+    }
+    return true;
+  };
+
   return (
-    <PageTransition className="min-h-screen coffee-pattern pb-20">
+    <PageTransition className="min-h-screen coffee-pattern">
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-md shadow-sm">
         <div className="container max-w-md mx-auto p-4">
           <div className="flex items-center justify-between">
@@ -42,13 +75,9 @@ const Cart = () => {
             </Link>
             
             <Logo withText={false} />
-            
-            {/* Empty div for alignment */}
-            <div className="w-8"></div>
           </div>
           
-          <div className="mt-3 flex items-center justify-center gap-2">
-            <ShoppingCart size={18} className="text-cafe" />
+          <div className="mt-3 flex items-center justify-center">
             <h1 className="text-xl font-semibold text-cafe-text">Your Cart</h1>
           </div>
         </div>
@@ -63,7 +92,7 @@ const Cart = () => {
                 variant="ghost" 
                 size="sm"
                 className="text-red-500 hover:bg-red-50 hover:text-red-600"
-                onClick={handleClearClick} // Changed to use dialog
+                onClick={handleClearClick}
               >
                 <Trash2 size={14} className="mr-1" />
                 Clear all
@@ -85,6 +114,28 @@ const Cart = () => {
             </AnimatePresence>
             
             <div className="cafe-card mt-6 p-4">
+              <h3 className="mb-3 font-semibold">Delivery Information</h3>
+              
+              <div className="mb-4">
+                <Label htmlFor="roomNumber" className="text-sm text-cafe-text/70 mb-1 block">
+                  Room Number <span className="text-red-500">*</span>
+                </Label>
+                <div className="relative">
+                  <Building className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="roomNumber"
+                    placeholder="Enter your room number"
+                    value={roomNumber}
+                    onChange={handleRoomNumberChange}
+                    className="pl-10"
+                    required
+                  />
+                </div>
+                <p className="text-xs text-cafe-text/60 mt-1">
+                  Required for delivery in the hospital
+                </p>
+              </div>
+              
               <h3 className="mb-3 font-semibold">Order Summary</h3>
               
               <div className="space-y-2 text-sm">
@@ -92,8 +143,6 @@ const Cart = () => {
                   <span className="text-cafe-text/70">Subtotal</span>
                   <span>₹{(typeof subtotal === 'number' && !isNaN(subtotal) ? subtotal : 0).toFixed(2)}</span>
                 </div>
-                
-                {/* Removed tax section */}
                 
                 <div className="pt-2 border-t border-cafe/10 flex justify-between font-semibold">
                   <span>Total</span>
@@ -121,14 +170,19 @@ const Cart = () => {
       {items.length > 0 && (
         <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md shadow-lg border-t border-cafe/10 p-4">
           <div className="container max-w-md mx-auto">
-            <Link to="/payment">
-              <Button className="w-full bg-cafe hover:bg-cafe-dark py-6">
-                <div className="flex w-full items-center justify-between">
-                  <span>Proceed to Payment</span>
-                  <span>₹{(typeof total === 'number' && !isNaN(total) ? total : 0).toFixed(2)}</span>
-                </div>
-              </Button>
-            </Link>
+            <Button 
+              className="w-full bg-cafe hover:bg-cafe-dark py-6"
+              onClick={() => {
+                if (handleProceedToPayment()) {
+                  window.location.href = '/payment';
+                }
+              }}
+            >
+              <div className="flex w-full items-center justify-between">
+                <span>Proceed to Payment</span>
+                <span>₹{(typeof total === 'number' && !isNaN(total) ? total : 0).toFixed(2)}</span>
+              </div>
+            </Button>
           </div>
         </div>
       )}
@@ -148,7 +202,6 @@ const Cart = () => {
               onClick={confirmClearCart}
               className="bg-red-500 hover:bg-red-600 text-white"
             >
-              <Trash2 size={14} className="mr-2" />
               Clear Cart
             </AlertDialogAction>
           </AlertDialogFooter>

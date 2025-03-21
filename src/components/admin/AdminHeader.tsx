@@ -8,9 +8,10 @@ import { toast } from 'sonner';
 const AdminHeader: React.FC = () => {
   const navigate = useNavigate();
 
-  // Simplified logout handler - just remove isAdmin flag
+  // Updated logout handler to remove both authentication items
   const handleLogout = () => {
     localStorage.removeItem('isAdmin');
+    localStorage.removeItem('adminSecurityKey');
     toast.info('Logged out successfully');
     navigate('/admin');
   };

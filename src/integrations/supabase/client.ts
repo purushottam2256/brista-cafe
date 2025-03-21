@@ -5,50 +5,44 @@ import { generateOrderId } from '@/utils/formatUtils';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-// Better error handling for production environments
-let clientInitialized = true;
-
 // Log connection parameters for debugging
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error('Supabase URL or Anon Key is missing from environment variables!');
-  clientInitialized = false;
 } else {
   console.log(`Supabase URL configured: ${supabaseUrl.slice(0, 12)}...`);
   console.log(`Supabase Anon Key configured: ${supabaseAnonKey.slice(0, 10)}...`);
 }
 
 // Create a supabase client with better error handling
-export const supabase = clientInitialized 
-  ? createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true
-      },
-      global: {
-        fetch: (...args) => {
-          // Add custom fetch with timeout
-          const controller = new AbortController();
-          const { signal } = controller;
-          
-          // Set a timeout of 10 seconds
-          const timeoutId = setTimeout(() => controller.abort(), 10000);
-          
-          // @ts-ignore
-          return fetch(...args, { signal })
-            .then(response => {
-              clearTimeout(timeoutId);
-              return response;
-            })
-            .catch(error => {
-              clearTimeout(timeoutId);
-              console.error('Supabase fetch error:', error);
-              throw error;
-            });
-        }
-      }
-    })
-  : null;
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  },
+  global: {
+    fetch: (...args) => {
+      // Add custom fetch with timeout
+      const controller = new AbortController();
+      const { signal } = controller;
+      
+      // Set a timeout of 10 seconds
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      // @ts-ignore
+      return fetch(...args, { signal })
+        .then(response => {
+          clearTimeout(timeoutId);
+          return response;
+        })
+        .catch(error => {
+          clearTimeout(timeoutId);
+          console.error('Supabase fetch error:', error);
+          throw error;
+        });
+    }
+  }
+});
 
 // Mock database for development
 interface MockDBResponse<T> {

@@ -9,24 +9,25 @@ import MenuCategory from '@/components/MenuCategory';
 import RecommendedItems from '@/components/RecommendedItems';
 import PageTransition from '@/components/PageTransition';
 import { useCart } from '@/context/CartContext';
-import menuData, { getRecommendedItems, MenuItemType, MenuCategoryType } from '@/utils/menuData';
+import { MenuItemType, MenuCategoryType } from '@/utils/menuData';
 import FAQButton from '@/components/FAQButton'; 
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { Loader2 } from 'lucide-react';
 
 const Menu: React.FC = () => {
   // References and state
   const { totalItems, items: cartItems } = useCart();
   const [searchQuery, setSearchQuery] = useState('');
-  const [filteredMenu, setFilteredMenu] = useState<MenuCategoryType[]>(menuData);
-  const [menuItems, setMenuItems] = useState<MenuCategoryType[]>(menuData);
-  const [recommendedItems, setRecommendedItems] = useState<MenuItemType[]>(getRecommendedItems());
+  const [filteredMenu, setFilteredMenu] = useState<MenuCategoryType[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuCategoryType[]>([]);
+  const [recommendedItems, setRecommendedItems] = useState<MenuItemType[]>([]);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { scrollY } = useScroll();
-  const [debugMode, setDebugMode] = useState(false);
   
   // Parallax effects based on scroll
   const backgroundY = useTransform(scrollY, [0, 500], [0, -50]);
@@ -34,132 +35,92 @@ const Menu: React.FC = () => {
   // Category references for scrolling
   const categoryRefs = useRef<{[key: string]: HTMLDivElement}>({});
   
-  // Make fetchMenuItems available for debug button
-  const handleSyncInventory = async () => {
-    try {
-      console.log("Manual sync triggered");
-      toast.success("Syncing with inventory...");
-      
-      // Fetch inventory data
-      const { data, error } = await supabase
-        .from('inventory')
-        .select('*')
-        .order('product_name');
-      
-      if (error) throw error;
-      
-      if (data && data.length > 0) {
-        console.log(`Loaded ${data.length} items from inventory:`, data);
-        
-        // Map inventory items by NAME (not ID) since IDs don't match
-        const inventoryMap = data.reduce((acc, item) => {
-          // Use normalized product_name as the key
-          const normalizedName = item.product_name.trim().toUpperCase();
-          acc[normalizedName] = {
-            id: String(item.id),
-            name: item.product_name,
-            price: item.price,
-            description: item.description,
-            category: item.category,
-            unavailable: item.quantity <= 0,
-            is_available: item.quantity > 0,
-            image: item.image_url || "/placeholder-food.jpg"
-          };
-          return acc;
-        }, {});
-        
-        console.log("Created inventory map by name:", inventoryMap);
-
-        // Update menu data with inventory information using name matching
-        const updatedMenu = menuData.map(category => ({
-          ...category,
-          items: category.items.map(item => {
-            // Normalize menu item name for matching
-            const menuItemName = item.name.trim().toUpperCase();
-            
-            // Look for a match by name
-            const invItem = inventoryMap[menuItemName];
-            
-            if (invItem) {
-              console.log(`Matched menu item "${item.name}" with inventory item "${invItem.name}"`);
-              return {
-                ...item,
-                price: invItem.price || item.price,
-                description: invItem.description || item.description,
-                unavailable: invItem.unavailable,
-                is_available: invItem.is_available,
-                // Store the inventory ID for future reference
-                inventory_id: invItem.id
-              };
-            }
-            return item;
-          })
-        }));
-        
-        // Update recommended items with inventory information using name matching
-        const updatedRecommended = getRecommendedItems().map(item => {
-          const menuItemName = item.name.trim().toUpperCase();
-          const invItem = inventoryMap[menuItemName];
+  // Fetch menu data from menu table (only available items)
+  useEffect(() => {
+    const fetchMenuData = async () => {
+      setIsLoading(true);
+      try {
+        // Fetch all available menu items from menu table
+        const { data: menuData, error } = await supabase
+          .from('menu')
+          .select('*')
+          .eq('is_available', true) // Only available items
+          .order('item_name');
           
-          if (invItem) {
-            console.log(`Matched recommended item "${item.name}" with inventory item "${invItem.name}"`);
-            return {
-              ...item,
-              price: invItem.price || item.price,
-              description: invItem.description || item.description,
-              unavailable: invItem.unavailable,
-              is_available: invItem.is_available,
-              inventory_id: invItem.id
-            };
+        if (error) {
+          throw error;
+        }
+        
+        // Transform menu items into menu format
+        const categorizedItems: { [category: string]: MenuItemType[] } = {};
+        const recommended: MenuItemType[] = [];
+        
+        // Process menu items
+        menuData?.forEach(item => {
+          const category = item.category || 'other';
+          
+          // Create menu item from menu table data
+          const menuItem: MenuItemType = {
+            id: item.id.toString(),
+            name: item.item_name,
+            price: item.price,
+            category: category,
+            description: item.description,
+            image: '' // Set a default empty string since image_url doesn't exist in the database
+          };
+          
+          // Add to category array
+          if (!categorizedItems[category]) {
+            categorizedItems[category] = [];
           }
-          return item;
+          categorizedItems[category].push(menuItem);
+          
+          // Add some items to recommended (randomly select a few)
+          if (recommended.length < 5 && Math.random() > 0.7) {
+            menuItem.recommended = true;
+            recommended.push(menuItem);
+          }
         });
         
-        // Inside the fetchMenuItems function, add this log so we can see the recommended items
-        console.log("Recommended items:", updatedRecommended.map(item => item.name));
-
-        // Add a slight delay to loading recommended items to ensure they're visible
-        setTimeout(() => {
-          setRecommendedItems(updatedRecommended);
-          console.log("Setting recommended items:", updatedRecommended.length);
-        }, 500);
+        // Convert categorized items to menu categories
+        const categoryNames: { [key: string]: string } = {
+          'breakfast': 'ENGLISH BREAKFAST',
+          'pizza': 'PIZZA\'S',
+          'burger': 'BURGER\'S',
+          'snacks': 'SNACK\'S',
+          'hot': 'HOT',
+          'coffee': 'COFFEE',
+          'tea': 'TEA',
+          'ice-tea': 'ICE TEA',
+          'ice-coffee': 'ICE COFFEE',
+          'smoothies': 'SMOOTHIES',
+          'other': 'OTHER ITEMS'
+        };
         
-        // Update state with the new data
-        setMenuItems(updatedMenu);
-        setFilteredMenu(updatedMenu);
+        const menuCategories: MenuCategoryType[] = Object.keys(categorizedItems).map(category => ({
+          id: category,
+          name: categoryNames[category] || category.toUpperCase(),
+          items: categorizedItems[category]
+        }));
+        
+        setMenuItems(menuCategories);
+        setFilteredMenu(menuCategories);
+        setRecommendedItems(recommended);
+        
+        // Set active category to first category if any exist
+        if (menuCategories.length > 0 && !activeCategory) {
+          setActiveCategory(menuCategories[0].id);
+        }
+      } catch (error: any) {
+        console.error('Error fetching menu data:', error);
+        toast.error('Failed to load menu. Please try again later.');
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error("Error syncing inventory:", error);
-      toast.error("Failed to sync with inventory");
-    }
-  };
-  
-  // Load menu items and availability data from Supabase
-  useEffect(() => {
-    // Initial fetch
-    handleSyncInventory();
-
-    // Set up real-time subscription to inventory changes
-    const inventoryChannel = supabase
-      .channel('inventory-changes')
-      .on('postgres_changes', {
-        event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
-        schema: 'public',
-        table: 'inventory',
-      }, (payload) => {
-        console.log('Inventory change detected:', payload);
-        handleSyncInventory(); // Refresh data on change
-      })
-      .subscribe((status) => {
-        console.log("Real-time subscription status:", status);
-      });
-
-    // Cleanup subscription on unmount
-    return () => {
-      console.log("Cleaning up inventory subscription");
-      supabase.removeChannel(inventoryChannel);
     };
-  }, []); // Remove activeCategory dependency to prevent issues
+    
+    fetchMenuData();
+  }, []);
   
   // Filter menu items based on search query
   useEffect(() => {
@@ -214,158 +175,106 @@ const Menu: React.FC = () => {
   const getIconForCategory = (categoryId: string) => {
     return categoryIcon[categoryId as keyof typeof categoryIcon] || categoryIcon.default;
   };
+  
+  // Handle search focus
+  const handleSearchFocus = (focused: boolean) => {
+    setIsSearchFocused(focused);
+    if (!focused && !searchQuery) {
+      // Clear search when blurred and empty
+      setSearchQuery('');
+    }
+  };
+  
+  // Clear search function
+  const clearSearch = () => {
+    setSearchQuery('');
+  };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <PageTransition className="min-h-screen coffee-pattern">
+        <div className="fixed top-0 left-0 right-0 h-screen flex items-center justify-center z-50 bg-white/80">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin text-cafe mx-auto mb-4" />
+            <p className="text-cafe-text">Loading menu items...</p>
+          </div>
+        </div>
+      </PageTransition>
+    );
+  }
 
   return (
-    <PageTransition className="min-h-screen pb-24 bg-[#F8F3E9]">
-      {/* Animated background elements */}
-      <motion.div 
-        className="fixed inset-0 z-0 overflow-hidden"
-        style={{ y: backgroundY }}
-      >
-        <motion.div 
-          className="absolute top-0 left-0 w-full h-60 coffee-pattern"
-          style={{ opacity: 0.07 }} 
-        />
-        <motion.div 
-          className="absolute bottom-0 left-0 w-full h-60 coffee-pattern -scale-y-100"
-          style={{ opacity: 0.09 }} 
-        />
-        
-        {/* Floating coffee beans - make more visible */}
-        {[...Array(6)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute bg-cafe/10 rounded-full"
-            style={{
-              width: `${20 + Math.random() * 30}px`,
-              height: `${20 + Math.random() * 30}px`,
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-            }}
-            animate={{
-              y: [0, -30, 0],
-              x: [0, Math.random() * 20 - 10, 0],
-              rotate: [0, 360, 0],
-              opacity: [0.1, 0.2, 0.1]
-            }}
-            transition={{
-              duration: 10 + Math.random() * 20,
-              repeat: Infinity,
-              ease: "easeInOut"
-            }}
-          />
-        ))}
-        
-        {/* Gradient orbs - make more visible */}
-        <div className="absolute -right-20 top-1/4 w-60 h-60 rounded-full bg-amber-500/10 blur-2xl" />
-        <div className="absolute -left-20 top-2/3 w-80 h-80 rounded-full bg-amber-700/10 blur-2xl" />
-      </motion.div>
-      
-      {/* Header with animations - reduce blur, increase opacity */}
+    <PageTransition className="min-h-screen coffee-pattern">
       <motion.header 
-        className="sticky top-0 z-10 bg-white/90 backdrop-blur-sm shadow-md border-b border-amber-100"
-        initial={{ y: -100 }}
-        animate={{ y: 0 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        className={`sticky top-0 z-10 bg-white/80 backdrop-blur-md shadow-sm transition-all ${
+          isSearchFocused ? 'pb-0' : 'pb-2'
+        }`}
+        style={{ 
+          paddingBottom: isSearchFocused ? 0 : 8
+        }}
       >
-        <motion.div 
-          className="container max-w-md mx-auto p-4"
-          layout
-        >
+        <div className="container max-w-md mx-auto p-4">
+          {/* Top navigation bar */}
           <div className="flex items-center justify-between">
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 10 }}
-            >
-              <Link to="/">
-                <Logo />
-              </Link>
-            </motion.div>
-            
-            <div className="flex items-center gap-2">
-              {/* FAQ Button added to the top-right corner */}
+            <Link to="/" className="text-cafe-text hover:text-cafe">
               <motion.div 
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.2 }}
+                whileHover={{ scale: 1.05 }} 
+                whileTap={{ scale: 0.95 }}
               >
-                <FAQButton variant="ghost" size="sm" className="text-cafe-dark hover:text-cafe hover:bg-amber-50" />
+                <Logo />
               </motion.div>
+            </Link>
+            
+            <div className="flex items-center gap-3">
+              <FAQButton />
               
-              {/* Cart icon with badge */}
-              <div className="relative">
-                <motion.div
-                  className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-cafe text-xs font-bold text-white"
-                  initial={{ scale: 0 }}
-                  animate={{ 
-                    scale: totalItems > 0 ? 1 : 0,
-                    rotate: totalItems > 0 ? [0, -10, 10, -10, 0] : 0 
-                  }}
-                  transition={{ 
-                    type: 'spring', 
-                    stiffness: 500, 
-                    damping: 30,
-                    rotate: { 
-                      delay: 0.2,
-                      duration: 0.5,
-                      ease: 'easeInOut' 
-                    }
-                  }}
+              <Link to="/cart" className="relative">
+                <motion.div 
+                  whileHover={{ scale: 1.1 }} 
+                  whileTap={{ scale: 0.9 }}
+                  className="relative"
                 >
-                  {typeof totalItems === 'number' && !isNaN(totalItems) ? totalItems : '0'}
+                  <ShoppingBag size={20} className="text-cafe" />
+                  
+                  {totalItems > 0 && (
+                    <span className="absolute -top-2 -right-2 bg-cafe text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                      {totalItems}
+                    </span>
+                  )}
                 </motion.div>
-                
-                <Link to="/cart">
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="text-cafe-dark hover:text-cafe hover:bg-amber-50"
-                  >
-                    <ShoppingBag size={22} />
-                  </Button>
-                </Link>
-              </div>
+              </Link>
             </div>
           </div>
           
-          <motion.div 
-            className="mt-4 relative"
-            animate={{ width: isSearchFocused ? '100%' : '100%' }}
-            transition={{ duration: 0.3 }}
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
           >
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-cafe-dark" />
-            <motion.div
-              initial={{ opacity: 1 }}
-              animate={{ 
-                opacity: 1,
-                scale: isSearchFocused ? 1.02 : 1
-              }}
-              transition={{ duration: 0.2 }}
-            >
+            {/* Search bar */}
+            <div className="my-4 relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search for drinks, desserts..."
+                type="text"
+                placeholder="Search menu..."
+                className="pl-10 pr-10"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                onFocus={() => setIsSearchFocused(true)}
-                onBlur={() => setIsSearchFocused(false)}
-                className="pl-10 pr-10 bg-white border-cafe/30 focus:border-cafe focus:ring-amber-200"
+                onFocus={() => handleSearchFocus(true)}
+                onBlur={() => handleSearchFocus(false)}
               />
-            </motion.div>
-            {searchQuery && (
-              <motion.button
-                initial={{ opacity: 0, scale: 0 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0 }}
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                <X size={16} />
-              </motion.button>
-            )}
+              {searchQuery && (
+                <button 
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  onClick={clearSearch}
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
           </motion.div>
           
-          {/* Category navigation */}
           <motion.div 
             className="mt-4 relative"
             initial={{ opacity: 0, y: -20 }}
@@ -394,7 +303,7 @@ const Menu: React.FC = () => {
               ))}
             </div>
           </motion.div>
-        </motion.div>
+        </div>
       </motion.header>
       
       <main className="container max-w-md mx-auto p-4 relative z-1" ref={scrollRef}>
@@ -431,138 +340,47 @@ const Menu: React.FC = () => {
               ))}
             </div>
           ) : (
-            <motion.div
-              className="bg-white rounded-xl shadow-md mt-10 p-8 text-center border border-amber-200"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            <motion.div 
+              className="cafe-card mt-10 p-8 text-center"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
             >
-              <motion.div 
-                className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-cafe/10"
-                animate={{ 
-                  scale: [1, 1.05, 1],
-                  rotate: [0, -5, 5, -5, 0]
-                }}
-                transition={{ 
-                  duration: 3,
-                  repeat: Infinity,
-                  repeatType: 'reverse'
-                }}
-              >
-                <Coffee size={24} className="text-cafe" />
-              </motion.div>
-              <h3 className="text-xl font-semibold text-cafe-dark">No items found</h3>
-              <p className="mt-2 text-muted-foreground">
-                Try a different search term or browse our categories
+              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-cafe/10">
+                <Search size={20} className="text-cafe" />
+              </div>
+              <h3 className="text-xl font-semibold">No items found</h3>
+              <p className="mt-2 text-muted-foreground mb-4">
+                Try searching for a different term
               </p>
-              <motion.button
-                className="mt-4 px-4 py-2 bg-cafe/10 text-cafe rounded-lg text-sm font-medium"
-                onClick={() => setSearchQuery('')}
-                whileHover={{ scale: 1.05, backgroundColor: 'rgba(146, 104, 69, 0.15)' }}
-                whileTap={{ scale: 0.95 }}
+              <Button 
+                variant="outline" 
+                onClick={clearSearch}
+                className="text-cafe border-cafe"
               >
-                Clear Search
-              </motion.button>
+                Clear search
+              </Button>
             </motion.div>
           )}
         </AnimatePresence>
         
-        {/* Return to top button - more visible */}
-        <motion.button
-          className="fixed bottom-24 right-4 h-10 w-10 rounded-full bg-cafe text-white flex items-center justify-center shadow-lg"
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          initial={{ opacity: 0, scale: 0 }}
-          animate={{ 
-            opacity: scrollY.get() > 300 ? 1 : 0,
-            scale: scrollY.get() > 300 ? 1 : 0,
-          }}
-          exit={{ opacity: 0, scale: 0 }}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-        >
-          <ChevronDown className="rotate-180" size={18} />
-        </motion.button>
-        
-        {/* Debug controls - more visible */}
-        {debugMode && (
-          <div className="fixed bottom-24 left-4 z-50">
-            <button
-              className="bg-black/80 text-white text-xs py-2 px-3 rounded-lg shadow-md"
-              onClick={handleSyncInventory}
-            >
-              Sync Inventory
-            </button>
-          </div>
-        )}
-
-        {/* Developer mode toggle */}
-        <div 
-          className="fixed bottom-2 left-2 h-4 w-4" 
-          onClick={() => {
-            setDebugMode(!debugMode);
-            if (!debugMode) toast.success("Debug mode enabled");
-          }}
-        />
-      </main>
-      
-      {/* Cart bar with animations - less blur, more visible */}
-      <AnimatePresence>
-        {totalItems > 0 && (
+        {menuItems.length === 0 && !isLoading && !searchQuery && (
           <motion.div 
-            className="fixed bottom-0 left-0 right-0 bg-white/95 shadow-lg border-t border-cafe/20 p-4"
-            initial={{ y: 100 }}
-            animate={{ y: 0 }}
-            exit={{ y: 100 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            className="cafe-card mt-10 p-8 text-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
           >
-            <div className="container max-w-md mx-auto">
-              <Link to="/cart">
-                <Button className="w-full bg-cafe hover:bg-cafe-dark py-6 group overflow-hidden relative">
-                  <motion.div 
-                    className="absolute inset-0 bg-gradient-to-r from-amber-700/80 to-amber-900/80"
-                    initial={{ x: '-100%' }}
-                    whileHover={{ x: '0%' }}
-                    transition={{ duration: 0.3 }}
-                  />
-                  <motion.div 
-                    className="relative z-10 flex w-full items-center justify-between"
-                    whileHover={{ scale: 1.03 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <span className="flex items-center">
-                      <motion.div
-                        animate={{ x: [0, 5, 0] }}
-                        transition={{ 
-                          duration: 1.5,
-                          repeat: Infinity,
-                          repeatType: 'reverse',
-                          ease: 'easeInOut'
-                        }}
-                      >
-                        <ShoppingBag size={18} className="mr-2" />
-                      </motion.div>
-                      View Cart <span className="ml-1 font-normal">({typeof totalItems === 'number' && !isNaN(totalItems) ? totalItems : 0} items)</span>
-                    </span>
-                    <motion.span
-                      animate={{ y: [0, -3, 0] }}
-                      transition={{ 
-                        duration: 2,
-                        repeat: Infinity,
-                        repeatType: 'reverse',
-                        ease: 'easeInOut'
-                      }}
-                      className="font-bold"
-                    >
-                      ₹{cartItems?.reduce((total, item) => total + (item.price * item.quantity), 0).toFixed(2) || '0.00'}
-                    </motion.span>
-                  </motion.div>
-                </Button>
-              </Link>
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-cafe/10">
+              <Coffee size={20} className="text-cafe" />
             </div>
+            <h3 className="text-xl font-semibold">No menu items available</h3>
+            <p className="mt-2 text-muted-foreground">
+              Please check back later or contact the staff
+            </p>
           </motion.div>
         )}
-      </AnimatePresence>
+      </main>
     </PageTransition>
   );
 };

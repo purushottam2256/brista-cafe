@@ -15,7 +15,6 @@ import AdminHeader from '@/components/admin/AdminHeader';
 import InventoryManagement from '@/components/admin/InventoryManagement';
 import OrderManagement from '@/components/admin/OrderManagement';
 import SalesAnalytics from '@/components/admin/SalesAnalytics';
-import MenuManagement from '@/components/admin/MenuManagement';
 
 // Define types for the order item
 export type OrderItemType = {
@@ -40,6 +39,7 @@ export type OrderType = {
   created_at: string;
   approved_at: string | null;
   table_number?: string;
+  room_number?: string;
   customer_name?: string;
   timestamp?: string;
 };
@@ -59,7 +59,7 @@ const BillDisplay = forwardRef<HTMLDivElement, BillDisplayProps>(({ order, isGen
         <h3 className="font-bold text-lg">Cafe Receipt</h3>
         <p className="text-sm text-gray-500">Order #{order.id}</p>
         <p className="text-sm text-gray-500">Date: {formatDate(order.created_at)}</p>
-        <p className="text-sm text-gray-500">Table: {order.table_number || 'Takeaway'}</p>
+        <p className="text-sm text-gray-500">Room: {order.room_number || order.table_number || 'Not specified'}</p>
         {order.customer_name && (
           <p className="text-sm text-gray-500">Customer: {order.customer_name}</p>
         )}
@@ -132,6 +132,7 @@ const AdminDashboard = () => {
   
   const handleLogout = () => {
     localStorage.removeItem('isAdmin');
+    localStorage.removeItem('adminSecurityKey');
     toast.success('Logged out successfully');
     navigate('/admin');
   };
@@ -251,14 +252,10 @@ const AdminDashboard = () => {
       
       <main className="container mx-auto max-w-4xl p-4 pb-20">
         <Tabs defaultValue="orders" className="w-full">
-          <TabsList className="grid grid-cols-4 mb-6">
+          <TabsList className="grid grid-cols-3 mb-6">
             <TabsTrigger value="inventory" className="flex items-center gap-2">
               <List size={16} />
               Inventory
-            </TabsTrigger>
-            <TabsTrigger value="menu" className="flex items-center gap-2">
-              <Menu size={16} />
-              Menu
             </TabsTrigger>
             <TabsTrigger value="orders" className="flex items-center gap-2">
               <Receipt size={16} />
@@ -272,24 +269,6 @@ const AdminDashboard = () => {
           
           <TabsContent value="inventory">
             <InventoryManagement />
-          </TabsContent>
-          
-          <TabsContent value="menu">
-            {/* If MenuManagement component doesn't exist, display a placeholder */}
-            {typeof MenuManagement === 'undefined' ? (
-              <div className="cafe-card p-6 text-center">
-                <h3 className="text-lg font-semibold text-cafe-dark mb-2">Menu Management</h3>
-                <p className="text-cafe-text/70 mb-4">This feature is coming soon. Use the Inventory section for now.</p>
-                <Button 
-                  variant="outline"
-                  onClick={() => document.getElementById('radix-:r61:-trigger-inventory')?.click()}
-                >
-                  Go to Inventory
-                </Button>
-              </div>
-            ) : (
-              <MenuManagement />
-            )}
           </TabsContent>
           
           <TabsContent value="orders">

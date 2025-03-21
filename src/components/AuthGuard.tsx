@@ -8,12 +8,13 @@ interface AuthGuardProps {
 const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
   const location = useLocation();
   
-  // Simplified authentication check without session timeout
+  // Updated authentication check to include security key
   const checkAuth = () => {
     const isAdmin = localStorage.getItem('isAdmin') === 'true';
+    const securityKey = localStorage.getItem('adminSecurityKey') === 'barista-secured-dashboard-key';
     
-    // Only check if isAdmin flag exists
-    if (!isAdmin) {
+    // Check both conditions
+    if (!isAdmin || !securityKey) {
       return false;
     }
     

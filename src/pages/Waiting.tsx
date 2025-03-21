@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Clock, Check, X, Printer } from 'lucide-react';
+import { Clock, Check, X, Printer, RefreshCcw } from 'lucide-react';
 import PageTransition from '@/components/PageTransition';
 import Logo from '@/components/Logo';
 import { toast } from 'sonner';
@@ -31,6 +31,21 @@ const Waiting = () => {
   const [error, setError] = useState<string | null>(null);
   const [orderData, setOrderData] = useState<any>(null);
   const [showBill, setShowBill] = useState(false);
+  const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Format the time since last refresh
+  const getTimeSinceRefresh = () => {
+    const now = new Date();
+    const diffSeconds = Math.floor((now.getTime() - lastRefreshed.getTime()) / 1000);
+    
+    if (diffSeconds < 60) {
+      return `${diffSeconds} seconds ago`;
+    } else {
+      const diffMinutes = Math.floor(diffSeconds / 60);
+      return `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''} ago`;
+    }
+  };
 
   // Fetch complete order data
   const fetchOrderData = async (id: string) => {
@@ -67,6 +82,7 @@ const Waiting = () => {
   // Check order status using Supabase
   useEffect(() => {
     const fetchOrderStatus = async () => {
+      setIsRefreshing(true);
       try {
         const { data, error } = await supabase
           .from('orders')
@@ -86,6 +102,7 @@ const Waiting = () => {
         setOrderData(data);
         const newStatus = data.status as 'pending' | 'approved' | 'rejected';
         setOrderStatus(newStatus);
+        setLastRefreshed(new Date());
         
         // If order is already approved when we load the page, show bill directly
         if (newStatus === 'approved') {
@@ -110,6 +127,8 @@ const Waiting = () => {
       } catch (error) {
         console.error("Error fetching order status:", error);
         setError("Failed to fetch order status");
+      } finally {
+        setIsRefreshing(false);
       }
     };
 
@@ -127,7 +146,8 @@ const Waiting = () => {
         console.log("Order status changed:", payload.new);
         const newStatus = payload.new.status as 'pending' | 'approved' | 'rejected';
         setOrderStatus(newStatus);
-
+        setLastRefreshed(new Date());
+        
         // Update the order data and show bill
         if (newStatus === 'approved') {
           console.log("Order just approved, navigating to bill");
@@ -179,6 +199,12 @@ const Waiting = () => {
         }
       })
       .subscribe();
+      
+    // Set up auto-refresh every 30 seconds
+    const refreshInterval = setInterval(() => {
+      console.log('Auto-refreshing order status...');
+      fetchOrderStatus();
+    }, 30000); // 30 seconds
 
     // Change coffee fact every 8 seconds
     const factInterval = setInterval(() => {
@@ -203,11 +229,12 @@ const Waiting = () => {
     }, 1000);
 
     return () => {
-      supabase.removeChannel(subscription);
+      subscription.unsubscribe();
+      clearInterval(refreshInterval);
       clearInterval(factInterval);
       clearInterval(timerInterval);
     };
-  }, [orderId, navigate, orderStatus]);
+  }, [orderId, navigate]);
 
   // Format the remaining time
   const formatTime = (seconds: number) => {
@@ -220,8 +247,66 @@ const Waiting = () => {
     <PageTransition className="min-h-screen coffee-pattern">
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-md shadow-sm">
         <div className="container max-w-md mx-auto p-4">
-          <div className="flex items-center justify-center">
+          <div className="flex items-center justify-between">
             <Logo />
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-cafe-text/60">Updated {getTimeSinceRefresh()}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  const fetchOrderStatus = async () => {
+                    setIsRefreshing(true);
+                    try {
+                      const { data, error } = await supabase
+                        .from('orders')
+                        .select('*')
+                        .eq('id', orderId)
+                        .single();
+                      
+                      if (error) throw error;
+                      
+                      if (!data) {
+                        console.log(`Order ${orderId} not found`);
+                        setError("Order not found");
+                        return;
+                      }
+                      
+                      setOrderData(data);
+                      const newStatus = data.status as 'pending' | 'approved' | 'rejected';
+                      setOrderStatus(newStatus);
+                      setLastRefreshed(new Date());
+                      
+                      if (newStatus === 'approved') {
+                        console.log("Order already approved, navigating to bill");
+                        localStorage.setItem('lastApprovedOrderId', orderId);
+                        localStorage.setItem('currentOrderData', JSON.stringify(data));
+                        navigate('/bill', { 
+                          state: { 
+                            orderId,
+                            orderData: data,
+                            fromWaiting: true
+                          },
+                          replace: true
+                        });
+                      } else if (newStatus === 'rejected') {
+                        toast.error("Your order has been rejected.");
+                      }
+                    } catch (error) {
+                      console.error("Error fetching order status:", error);
+                      setError("Failed to fetch order status");
+                    } finally {
+                      setIsRefreshing(false);
+                    }
+                  };
+                  fetchOrderStatus();
+                }}
+                disabled={isRefreshing}
+                className="h-8"
+              >
+                <RefreshCcw size={14} className={`${isRefreshing ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
           </div>
         </div>
       </header>
