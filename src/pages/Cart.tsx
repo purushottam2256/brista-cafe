@@ -51,7 +51,7 @@ const Cart = () => {
   };
 
   const handleRoomNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Only allow numbers and limit to 4 digits
+    // Only allow numbers and limit to 3 digits
     const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
     setRoomNumber(value);
   };
@@ -65,34 +65,25 @@ const Cart = () => {
   };
 
   return (
-    <PageTransition className="min-h-screen coffee-pattern pb-24">
-      <header className="sticky top-0 z-10 bg-white/90 backdrop-blur-md shadow-sm">
-        <div className="container max-w-md mx-auto px-4 py-3 safe-area-padding">
+    <PageTransition className="min-h-screen coffee-pattern">
+      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-md shadow-sm">
+        <div className="container max-w-md mx-auto p-4">
           <div className="flex items-center justify-between">
-            <Link 
-              to="/menu" 
-              className="flex items-center gap-1 text-cafe-text hover:text-cafe p-2 touch-manipulation"
-              aria-label="Back to Menu"
-            >
-              <motion.div
-                whileHover={{ x: -3 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <ChevronLeft size={20} />
-              </motion.div>
-              <span className="text-sm font-medium">Menu</span>
+            <Link to="/menu" className="flex items-center gap-1 text-cafe-text hover:text-cafe">
+              <ChevronLeft size={18} />
+              <span>Back to Menu</span>
             </Link>
             
             <Logo withText={false} />
           </div>
           
-          <div className="mt-2 flex items-center justify-center">
+          <div className="mt-3 flex items-center justify-center">
             <h1 className="text-xl font-semibold text-cafe-text">Your Cart</h1>
           </div>
         </div>
       </header>
       
-      <main className="container max-w-md mx-auto p-4 safe-area-padding">
+      <main className="container max-w-md mx-auto p-4">
         {items.length > 0 ? (
           <>
             <div className="flex justify-between items-center mb-3">
@@ -100,11 +91,11 @@ const Cart = () => {
               <Button
                 variant="ghost" 
                 size="sm"
-                className="text-red-500 hover:bg-red-50 hover:text-red-600 p-2 touch-manipulation"
+                className="text-red-500 hover:bg-red-50 hover:text-red-600"
                 onClick={handleClearClick}
               >
-                <Trash2 size={16} className="mr-1" />
-                <span>Clear all</span>
+                <Trash2 size={14} className="mr-1" />
+                Clear all
               </Button>
             </div>
             
@@ -116,23 +107,17 @@ const Cart = () => {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: -10 }}
-                  layout
                 >
                   <CartItem item={item} />
                 </motion.div>
               ))}
             </AnimatePresence>
             
-            <motion.div 
-              className="cafe-card mt-6 p-5 rounded-2xl shadow-sm"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-            >
-              <h3 className="mb-4 font-semibold text-lg">Delivery Information</h3>
+            <div className="cafe-card mt-6 p-4">
+              <h3 className="mb-3 font-semibold">Delivery Information</h3>
               
-              <div className="mb-5">
-                <Label htmlFor="roomNumber" className="text-sm text-cafe-text/70 mb-2 block">
+              <div className="mb-4">
+                <Label htmlFor="roomNumber" className="text-sm text-cafe-text/70 mb-1 block">
                   Room Number <span className="text-red-500">*</span>
                 </Label>
                 <div className="relative">
@@ -142,69 +127,61 @@ const Cart = () => {
                     placeholder="Enter your room number"
                     value={roomNumber}
                     onChange={handleRoomNumberChange}
-                    className="pl-10 h-12 text-base rounded-xl"
+                    className="pl-10"
                     required
-                    inputMode="numeric"
                   />
                 </div>
-                <p className="text-xs text-cafe-text/60 mt-2">
+                <p className="text-xs text-cafe-text/60 mt-1">
                   Required for delivery in the hospital
                 </p>
               </div>
               
-              <h3 className="mb-3 font-semibold text-lg">Order Summary</h3>
+              <h3 className="mb-3 font-semibold">Order Summary</h3>
               
-              <div className="space-y-3 text-sm">
+              <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-cafe-text/70">Subtotal</span>
-                  <span className="font-medium">₹{(typeof subtotal === 'number' && !isNaN(subtotal) ? subtotal : 0).toFixed(2)}</span>
+                  <span>₹{(typeof subtotal === 'number' && !isNaN(subtotal) ? subtotal : 0).toFixed(2)}</span>
                 </div>
                 
-                <div className="pt-3 border-t border-cafe/10 flex justify-between font-semibold text-base">
+                <div className="pt-2 border-t border-cafe/10 flex justify-between font-semibold">
                   <span>Total</span>
                   <span>₹{(typeof total === 'number' && !isNaN(total) ? total : 0).toFixed(2)}</span>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </>
         ) : (
-          <motion.div 
-            className="cafe-card mt-10 p-8 text-center rounded-2xl"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-cafe/10">
-              <ShoppingCart size={30} className="text-cafe" />
+          <div className="cafe-card mt-10 p-8 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-cafe/10">
+              <ShoppingCart size={24} className="text-cafe" />
             </div>
-            <h3 className="text-2xl font-semibold mb-2">Your cart is empty</h3>
-            <p className="mt-2 text-muted-foreground mb-6">
+            <h3 className="text-xl font-semibold">Your cart is empty</h3>
+            <p className="mt-2 text-muted-foreground">
               Add items from the menu to get started
             </p>
-            <Button asChild className="mt-2 bg-cafe hover:bg-cafe-dark py-6 px-8 text-base rounded-xl">
+            <Button asChild className="mt-6 bg-cafe hover:bg-cafe-dark">
               <Link to="/menu">Browse Menu</Link>
             </Button>
-          </motion.div>
+          </div>
         )}
       </main>
       
       {items.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md shadow-lg border-t border-cafe/10 p-4 safe-area-padding-bottom">
+        <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md shadow-lg border-t border-cafe/10 p-4">
           <div className="container max-w-md mx-auto">
             <Button 
-              className="w-full bg-cafe hover:bg-cafe-dark py-7 rounded-xl text-base"
+              className="w-full bg-cafe hover:bg-cafe-dark py-6"
               onClick={() => {
                 if (handleProceedToPayment()) {
                   window.location.href = '/payment';
                 }
               }}
             >
-              <motion.div 
-                className="flex w-full items-center justify-between"
-                whileTap={{ scale: 0.98 }}
-              >
+              <div className="flex w-full items-center justify-between">
                 <span>Proceed to Payment</span>
-                <span className="font-bold">₹{(typeof total === 'number' && !isNaN(total) ? total : 0).toFixed(2)}</span>
-              </motion.div>
+                <span>₹{(typeof total === 'number' && !isNaN(total) ? total : 0).toFixed(2)}</span>
+              </div>
             </Button>
           </div>
         </div>
@@ -212,18 +189,18 @@ const Cart = () => {
       
       {/* Confirmation Dialog */}
       <AlertDialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
-        <AlertDialogContent className="rounded-2xl max-w-[90%] mx-auto">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl">Clear your cart?</AlertDialogTitle>
+            <AlertDialogTitle>Clear your cart?</AlertDialogTitle>
             <AlertDialogDescription>
               This will remove all items from your cart. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-            <AlertDialogCancel className="w-full sm:w-auto mt-0">Cancel</AlertDialogCancel>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction 
               onClick={confirmClearCart}
-              className="bg-red-500 hover:bg-red-600 text-white w-full sm:w-auto"
+              className="bg-red-500 hover:bg-red-600 text-white"
             >
               Clear Cart
             </AlertDialogAction>

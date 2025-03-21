@@ -43,7 +43,7 @@ const Menu: React.FC = () => {
         // Fetch all available menu items from menu table
         const { data: menuData, error } = await supabase
           .from('menu')
-          .select('*')
+        .select('*')
           .eq('is_available', true) // Only available items
           .order('item_name');
           
@@ -148,9 +148,8 @@ const Menu: React.FC = () => {
   const scrollToCategory = (categoryId: string) => {
     const element = categoryRefs.current[categoryId];
     if (element) {
-      // Offset for header height - adjust for mobile
-      // Increased offset for better mobile viewing
-      const yOffset = -100; 
+      // Offset for header height
+      const yOffset = -90; 
       const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
       
       window.scrollTo({
@@ -208,35 +207,35 @@ const Menu: React.FC = () => {
   return (
     <PageTransition className="min-h-screen coffee-pattern">
       <motion.header 
-        className={`sticky top-0 z-10 bg-white/90 backdrop-blur-md shadow-sm transition-all ${
+        className={`sticky top-0 z-10 bg-white/80 backdrop-blur-md shadow-sm transition-all ${
           isSearchFocused ? 'pb-0' : 'pb-2'
         }`}
         style={{ 
           paddingBottom: isSearchFocused ? 0 : 8
         }}
       >
-        <div className="container max-w-md mx-auto px-4 py-3 safe-area-padding">
+        <div className="container max-w-md mx-auto p-4">
           {/* Top navigation bar */}
           <div className="flex items-center justify-between">
             <Link to="/" className="text-cafe-text hover:text-cafe">
-              <motion.div 
-                whileHover={{ scale: 1.05 }} 
-                whileTap={{ scale: 0.95 }}
-              >
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
                 <Logo />
               </motion.div>
-            </Link>
+              </Link>
             
             <div className="flex items-center gap-3">
               <FAQButton />
               
               <Link to="/cart" className="relative">
-                <motion.div 
+                <motion.div
                   whileHover={{ scale: 1.1 }} 
                   whileTap={{ scale: 0.9 }}
                   className="relative"
                 >
-                  <ShoppingBag size={24} className="text-cafe p-1" />
+                  <ShoppingBag size={20} className="text-cafe" />
                   
                   {totalItems > 0 && (
                     <span className="absolute -top-2 -right-2 bg-cafe text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
@@ -244,50 +243,50 @@ const Menu: React.FC = () => {
                     </span>
                   )}
                 </motion.div>
-              </Link>
+                </Link>
             </div>
           </div>
           
-          <motion.div
+          <motion.div 
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
             {/* Search bar */}
-            <div className="my-3 relative">
+            <div className="my-4 relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="text"
                 placeholder="Search menu..."
-                className="pl-10 pr-10 h-11 w-full rounded-full"
+                className="pl-10 pr-10"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => handleSearchFocus(true)}
                 onBlur={() => handleSearchFocus(false)}
               />
-              {searchQuery && (
+            {searchQuery && (
                 <button 
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground p-1"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                   onClick={clearSearch}
-                >
-                  <X size={16} />
+              >
+                <X size={16} />
                 </button>
-              )}
+            )}
             </div>
           </motion.div>
           
           <motion.div 
-            className="mt-3 relative"
+            className="mt-4 relative"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
           >
-            <div className="w-full flex gap-2 overflow-x-auto pb-2 scrollbar-hide no-scrollbar touch-pan-x">
+            <div className="w-full flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
               {menuItems.map((category, index) => (
                 <motion.button
                   key={category.id}
                   onClick={() => scrollToCategory(category.id)}
-                  className={`px-3 py-2 rounded-full whitespace-nowrap text-sm font-medium flex items-center gap-1.5 touch-manipulation ${
+                  className={`px-3 py-2 rounded-full whitespace-nowrap text-sm font-medium flex items-center gap-1.5 ${
                     activeCategory === category.id 
                       ? 'bg-cafe text-white'
                       : 'bg-white/80 border border-cafe/10 text-cafe-dark hover:bg-cafe/5'
@@ -307,7 +306,7 @@ const Menu: React.FC = () => {
         </div>
       </motion.header>
       
-      <main className="container max-w-md mx-auto p-4 pb-16 safe-area-padding relative z-1" ref={scrollRef}>
+      <main className="container max-w-md mx-auto p-4 relative z-1" ref={scrollRef}>
         {!searchQuery && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -341,7 +340,7 @@ const Menu: React.FC = () => {
               ))}
             </div>
           ) : (
-            <motion.div 
+            <motion.div
               className="cafe-card mt-10 p-8 text-center"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -381,32 +380,7 @@ const Menu: React.FC = () => {
             </p>
           </motion.div>
         )}
-        
-        {/* Spacer to avoid content behind cart button on mobile */}
-        <div className="h-16"></div>
       </main>
-      
-      {/* Fixed Cart button for mobile - only show when there are items */}
-      {totalItems > 0 && (
-        <motion.div
-          className="fixed bottom-4 right-4 z-50 shadow-lg rounded-full overflow-hidden"
-          initial={{ scale: 0, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: "spring", stiffness: 260, damping: 20 }}
-        >
-          <Button
-            asChild
-            className="h-14 w-14 rounded-full bg-cafe hover:bg-cafe-dark flex items-center justify-center"
-          >
-            <Link to="/cart">
-              <ShoppingBag size={20} className="text-white" />
-              <span className="absolute -top-0 -right-0 bg-white text-cafe text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center border-2 border-cafe">
-                {totalItems}
-              </span>
-            </Link>
-          </Button>
-        </motion.div>
-      )}
     </PageTransition>
   );
 };
