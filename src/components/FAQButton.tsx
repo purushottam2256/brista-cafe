@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { HelpCircle } from "lucide-react";
+import { HelpCircle, MessageCircle, Phone } from "lucide-react";
 import { Button, ButtonProps } from "@/components/ui/button";
 
 interface FAQButtonProps extends ButtonProps {
@@ -16,30 +16,73 @@ const FAQButton: React.FC<FAQButtonProps> = ({
   ...props
 }) => {
   const navigate = useNavigate();
+  const [isTooltipVisible, setIsTooltipVisible] = useState(false);
   
   const handleFAQClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     navigate('/faq');
   };
+
+  const handleContactClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigate('/contact');
+  };
   
   return (
-    <div className="relative group">
+    <div 
+      className="relative group"
+      onMouseEnter={() => setIsTooltipVisible(true)}
+      onMouseLeave={() => setIsTooltipVisible(false)}
+      onTouchStart={() => setIsTooltipVisible(prev => !prev)}
+    >
       {tooltip && (
         <motion.div 
-          className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-black/80 text-white text-xs px-2 py-1 rounded-md whitespace-nowrap opacity-0 invisible group-hover:visible"
-          initial={{ opacity: 0, y: 5 }}
-          animate={{
-            opacity: 0,
-            y: 5,
-            transition: { duration: 0.2 }
-          }}
-          whileHover={{
-            opacity: 1,
-            y: 0,
+          className="absolute -top-36 left-1/2 transform -translate-x-1/2 bg-black/80 text-white text-xs px-4 py-3 rounded-md whitespace-nowrap z-50"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ 
+            opacity: isTooltipVisible ? 1 : 0,
+            y: isTooltipVisible ? 0 : 10,
             transition: { duration: 0.2 }
           }}
         >
-          FAQs & Help
+          <div className="flex flex-col gap-2">
+            <button 
+              onClick={(e: any) => {
+                e.preventDefault();
+                e.stopPropagation();
+                navigate('/faq');
+                setIsTooltipVisible(false);
+              }}
+              className="flex items-center gap-2 hover:text-blue-300 transition-colors"
+            >
+              <HelpCircle size={16} />
+              <span>FAQs & Help</span>
+            </button>
+            <button 
+              onClick={(e: any) => {
+                e.preventDefault();
+                e.stopPropagation();
+                navigate('/contact');
+                setIsTooltipVisible(false);
+              }}
+              className="flex items-center gap-2 hover:text-blue-300 transition-colors"
+            >
+              <MessageCircle size={16} />
+              <span>Contact Us</span>
+            </button>
+            <a 
+              href="tel:+919701441539"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsTooltipVisible(false);
+              }}
+              className="flex items-center gap-2 hover:text-blue-300 transition-colors"
+            >
+              <Phone size={16} />
+              <span>+91 9701441539</span>
+            </a>
+          </div>
           <div className="absolute left-1/2 transform -translate-x-1/2 top-full w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-black/80"></div>
         </motion.div>
       )}
@@ -60,7 +103,7 @@ const FAQButton: React.FC<FAQButtonProps> = ({
             className="h-[1.2em] w-[1.2em]" 
             aria-hidden="true"
           />
-          <span className="sr-only">FAQs and Help</span>
+          <span className="sr-only">Help Options</span>
         </motion.div>
       </Button>
     </div>
